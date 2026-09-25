@@ -108,3 +108,52 @@ Clearly separate:
 Start by understanding the existing production environment. Do not immediately generate or apply infrastructure until the actual network, DNS, Syntax endpoint, and port requirements have been established.
 
 Keep the implementation minimal and supportable.
+
+
+
+## Instructions for Company GPT
+
+Use this document and the repository as the starting context for this work.
+
+The HAProxy DNS re-resolution POC has already been successfully tested. Do not recreate the POC unless additional validation is required.
+
+The immediate objective is to determine whether this can be adapted and deployed into the actual company environment today.
+
+Before modifying infrastructure, help inspect and document the existing environment, including:
+
+- Windows/netsh forwarding configuration
+- Syntax FQDNs and destination ports
+- DNS resolver architecture
+- VNet/subnet placement
+- UDRs and effective routes
+- NSGs and firewall requirements
+- Meraki/private connectivity to Syntax AWS
+- Existing client ingress path
+- Availability requirements
+
+Maintain four categories as we work:
+
+1. Verified facts
+2. Assumptions
+3. Items requiring validation
+4. Deployment blockers
+
+The likely target architecture is:
+
+Application
+    |
+Azure Internal Load Balancer
+    |
+    +-- HAProxy VM 01
+    |
+    +-- HAProxy VM 02
+            |
+      Existing private/Meraki path
+            |
+        Syntax AWS
+
+This architecture is a candidate, not yet a final decision.
+
+Do not redesign unrelated company networking.
+
+Once the actual environment has been validated and the production architecture agreed upon, produce clear implementation requirements that can be handed to Codex to modify the Terraform in this repository.
