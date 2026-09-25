@@ -1,0 +1,78 @@
+#cloud-config
+write_files:
+  - path: /usr/local/bin/ensure-secondary-ip.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+      interface="$(ip -4 route show default | awk 'NR == 1 { print $5 }')"
+      ip address replace 10.50.1.21/24 dev "$interface"
+
+  - path: /opt/backend-server.py
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env python3
+      import sys
+      from http.server import BaseHTTPRequestHandler, HTTPServer
+
+      bind_address = sys.argv[1]
+      response_body = {
+          "10.50.1.20": b"BACKEND-1 10.50.1.20\n",
+          "10.50.1.21": b"BACKEND-2 10.50.1.21\n",
+      }[bind_address]
+
+      class Handler(BaseHTTPRequestHandler):
+          def do_GET(self):
+              self.send_response(200)
+              self.send_header("Content-Type", "text/plain")
+              self.send_header("Content-Length", str(len(response_body)))
+              self.end_headers()
+              self.wfile.write(response_body)
+
+          def log_message(self, format, *args):
+              return
+
+      HTTPServer((bind_address, 8080), Handler).serve_forever()
+
+  - path: /etc/systemd/system/backend-secondary-ip.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Configure the backend secondary private IP
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/ensure-secondary-ip.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/backend-listener@.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Demo HTTP listener on %i
+      After=network-online.target backend-secondary-ip.service
+      Wants=network-online.target
+      Requires=backend-secondary-ip.service
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/python3 /opt/backend-server.py %i
+      Restart=on-failure
+      RestartSec=1
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, backend-secondary-ip.service]
+  - [systemctl, enable, --now, backend-listener@10.50.1.20.service]
+  - [systemctl, enable, --now, backend-listener@10.50.1.21.service]

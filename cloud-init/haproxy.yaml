@@ -1,0 +1,44 @@
+#cloud-config
+package_update: true
+packages:
+  - haproxy
+
+write_files:
+  - path: /etc/haproxy/haproxy.cfg
+    owner: root:root
+    permissions: "0644"
+    content: |
+      global
+          log /dev/log local0
+          log /dev/log local1 notice
+          daemon
+
+      defaults
+          log global
+          mode tcp
+          option tcplog
+          timeout connect 5s
+          timeout client 30s
+          timeout server 30s
+
+      resolvers azure
+          nameserver azure-dns 168.63.129.16:53
+          resolve_retries 3
+          timeout resolve 1s
+          timeout retry 1s
+          hold valid 5s
+          hold nx 1s
+          hold timeout 1s
+          hold refused 1s
+          hold other 1s
+
+      frontend tcp-1520
+          bind *:1520
+          default_backend demo-backend
+
+      backend demo-backend
+          server demo syntax.demo.internal:8080 check resolvers azure init-addr last,libc,none
+
+runcmd:
+  - [systemctl, enable, haproxy]
+  - [systemctl, restart, haproxy]
